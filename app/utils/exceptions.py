@@ -1,109 +1,84 @@
-from fastapi import HTTPException, Request, status
-from fastapi.responses import JSONResponse
+from fastapi import Request, status
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 
-class EmployeeNotFoundException(Exception):
-    """Exception raised when employee is not found"""
-    
-    def __init__(self, employee_id: int):
-        self.employee_id = employee_id
-        self.message = f"Employee with id {employee_id} not found"
+class OrderNotFoundException(Exception):
+    """Raised when an order is not found for the given user."""
+
+    def __init__(self, order_id: int):
+        self.order_id = order_id
+        self.message = f"Order with id {order_id} not found"
         super().__init__(self.message)
 
 
-class EmployeeAlreadyExistsException(Exception):
-    """Exception raised when employee with email already exists"""
-    
-    def __init__(self, email: str):
-        self.email = email
-        self.message = f"Employee with email {email} already exists"
+class OrderAlreadyExistsException(Exception):
+    """Raised when the user already has a pending order for the same product."""
+
+    def __init__(self, product_name: str):
+        self.product_name = product_name
+        self.message = f"You already have a pending order for '{product_name}'"
         super().__init__(self.message)
 
 
-class InvalidSalaryException(Exception):
-    """Exception raised when salary validation fails"""
-    
-    def __init__(self, message: str):
-        self.message = message
-        super().__init__(self.message)
+# ── Exception handlers ────────────────────────────────────────────────────────
 
 
-# Custom exception handlers
-async def employee_not_found_exception_handler(
-    request: Request, 
-    exc: EmployeeNotFoundException
+async def order_not_found_exception_handler(
+    request: Request,
+    exc: OrderNotFoundException,
 ) -> JSONResponse:
-    """Handler for EmployeeNotFoundException"""
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,
         content={
             "error": "Not Found",
             "message": exc.message,
-            "employee_id": exc.employee_id,
-            "path": str(request.url)
-        }
+            "order_id": exc.order_id,
+            "path": str(request.url),
+        },
     )
 
 
-async def employee_already_exists_exception_handler(
-    request: Request, 
-    exc: EmployeeAlreadyExistsException
+async def order_already_exists_exception_handler(
+    request: Request,
+    exc: OrderAlreadyExistsException,
 ) -> JSONResponse:
-    """Handler for EmployeeAlreadyExistsException"""
     return JSONResponse(
-        status_code=status.HTTP_400_BAD_REQUEST,
+        status_code=status.HTTP_409_CONFLICT,
         content={
-            "error": "Bad Request",
+            "error": "Conflict",
             "message": exc.message,
-            "email": exc.email,
-            "path": str(request.url)
-        }
-    )
-
-
-async def invalid_salary_exception_handler(
-    request: Request, 
-    exc: InvalidSalaryException
-) -> JSONResponse:
-    """Handler for InvalidSalaryException"""
-    return JSONResponse(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        content={
-            "error": "Invalid Salary",
-            "message": exc.message,
-            "path": str(request.url)
-        }
+            "product_name": exc.product_name,
+            "path": str(request.url),
+        },
     )
 
 
 async def validation_exception_handler(
-    request: Request, 
-    exc: RequestValidationError
+    request: Request,
+    exc: RequestValidationError,
 ) -> JSONResponse:
-    """Handler for request validation errors"""
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
             "error": "Validation Error",
             "message": "Invalid input data",
             "details": exc.errors(),
-            "path": str(request.url)
-        }
+            "path": str(request.url),
+        },
     )
 
 
 async def generic_exception_handler(
-    request: Request, 
-    exc: Exception
+    request: Request,
+    exc: Exception,
 ) -> JSONResponse:
-    """Handler for generic exceptions"""
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "error": "Internal Server Error",
             "message": "An unexpected error occurred",
             "details": str(exc),
-            "path": str(request.url)
-        }
+            "path": str(request.url),
+        },
     )

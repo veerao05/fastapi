@@ -1,19 +1,22 @@
-# Employee Management System - Async FastAPI
+# Order Management System - Async FastAPI
 
-A production-ready Employee Management System built with FastAPI, demonstrating best practices in async Python development with proper layered architecture, structured logging, and Docker deployment.
+A production-ready Order Management System built with FastAPI, demonstrating best practices in async Python development with JWT authentication, layered architecture, structured logging, and Docker deployment.
 
 ## Features
 
-- **Full CRUD Operations** - Create, Read, Update, Delete employees
-- **Async/Await** - High-performance asynchronous operations
-- **SQLite Integration** - Lightweight database with async support
+- **JWT Authentication** - Register, login, and secure endpoints with Bearer tokens
+- **User-scoped Orders** - Each user can only see and manage their own orders
+- **Full CRUD Operations** - Create, Read, Update, Delete orders
+- **Async/Await** - High-performance asynchronous operations throughout
+- **PostgreSQL + asyncpg** - Production database with async driver
 - **Layered Architecture** - API → Service → Database pattern
+- **Custom Exception Handling** - Typed exceptions with structured JSON error responses
+- **Data Validation** - Pydantic v2 schemas with strict validation rules
 - **Structured Logging** - Rotating file logs + console output via `logging.ini`
 - **Logging Middleware** - Logs every request and response automatically
-- **Custom Exception Handling** - Detailed, user-friendly error responses
-- **Data Validation** - Pydantic schemas with strict validation rules
+- **Alembic Migrations** - Schema versioning and safe database migrations
 - **Docker Support** - Dockerfile + docker-compose for easy deployment
-- **Test Suite** - Async pytest tests with in-memory SQLite
+- **Test Suite** - Async pytest tests with in-memory SQLite (no real DB needed)
 
 ## Architecture
 
@@ -24,17 +27,19 @@ A production-ready Employee Management System built with FastAPI, demonstrating 
 │  Middleware (LoggingMiddleware)                          │
 │  - Logs every incoming request and response status      │
 ├─────────────────────────────────────────────────────────┤
-│  API Layer (api/employee_api.py)                        │
+│  API Layer  (api/order_api.py + api/v1/endpoints/)      │
 │  - HTTP request/response handling                       │
 │  - Route definitions & dependency injection             │
+│  - JWT verification via HTTPBearer                      │
 ├─────────────────────────────────────────────────────────┤
-│  Service Layer (services/employee_service.py)           │
-│  - Business logic & validation rules                    │
+│  Service Layer (services/order_service.py)              │
+│  - Business logic, duplicate-order checks               │
+│  - Raises typed exceptions (OrderNotFoundException …)   │
 ├─────────────────────────────────────────────────────────┤
 │  Models & Schemas (models/ & schemas/)                  │
 │  - SQLAlchemy models & Pydantic schemas                 │
 ├─────────────────────────────────────────────────────────┤
-│  Database Layer (SQLite + SQLAlchemy async)             │
+│  Database Layer (PostgreSQL + SQLAlchemy async)         │
 │  - Async connection handling & data persistence         │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -43,44 +48,61 @@ A production-ready Employee Management System built with FastAPI, demonstrating 
 
 ```
 fastapi/
-├── Dockerfile                      # Docker image definition
-├── docker-compose.yml              # Docker Compose for deployment
-├── .dockerignore                   # Files excluded from Docker build
-├── pytest.ini                      # Pytest configuration
-├── requirements.txt                # Python dependencies
+├── Dockerfile                          # Docker image definition
+├── docker-compose.yml                  # Docker Compose for deployment
+├── .dockerignore                       # Files excluded from Docker build
+├── .env                                # Environment variables (not committed)
+├── pytest.ini                          # Pytest configuration
+├── requirements.txt                    # Python dependencies
+├── alembic.ini                         # Alembic configuration
+├── alembic/
+│   ├── env.py                          # Alembic async environment setup
+│   └── versions/                       # Migration scripts (auto-generated)
 ├── config/
-│   └── logging.ini                 # Logging configuration
+│   └── logging.ini                     # Logging configuration
 ├── var/
-│   └── logs/                       # Log files (auto-created at startup)
-│       ├── cog.log                 # INFO+ logs (rotating, 5MB x 5)
-│       └── cog-error.log           # ERROR+ logs (rotating, 5MB x 5)
+│   └── logs/                           # Log files (auto-created at startup)
+│       ├── cog.log                     # INFO+ logs (rotating, 5MB × 5)
+│       └── cog-error.log               # ERROR+ logs (rotating, 5MB × 5)
 ├── tests/
-│   ├── conftest.py                 # Shared fixtures (in-memory DB, client)
-│   ├── test_health.py              # Tests for / and /health
-│   └── test_employee_api.py        # Full CRUD endpoint tests
+│   ├── conftest.py                     # Shared fixtures (in-memory SQLite, auth client)
+│   ├── test_health.py                  # Tests for / and /health
+│   ├── test_auth.py                    # Register + login tests
+│   └── test_order_api.py               # Full order CRUD + data isolation tests
 └── app/
-    ├── main.py                     # Application entry point
+    ├── main.py                         # Application entry point
     ├── api/
-    │   └── employee_api.py         # Employee routes
+    │   ├── order_api.py                # Order routes (/api/orders/)
+    │   └── v1/
+    │       ├── router.py               # v1 API router
+    │       └── endpoints/
+    │           ├── auth.py             # Register + Login endpoints
+    │           └── users.py            # User profile endpoint
+    ├── core/
+    │   ├── deps.py                     # JWT dependency (get_current_user)
+    │   ├── security.py                 # bcrypt password hashing
+    │   └── settings.py                 # App settings from .env
     ├── db/
-    │   └── database.py             # Async database setup
+    │   └── database.py                 # Async database setup
     ├── middleware/
-    │   ├── __init__.py
-    │   └── logging_middleware.py   # Request/response logging middleware
+    │   └── logging_middleware.py       # Request/response logging middleware
     ├── models/
-    │   └── employee.py             # SQLAlchemy model
+    │   ├── user.py                     # SQLAlchemy User model
+    │   └── order.py                    # SQLAlchemy Order model
     ├── schemas/
-    │   └── model_schema.py         # Pydantic schemas
+    │   ├── user.py                     # Pydantic user schemas
+    │   └── order_schema.py             # Pydantic order schemas
     ├── services/
-    │   └── employee_service.py     # Employee business logic
+    │   └── order_service.py            # Order business logic
     └── utils/
-        ├── constants.py            # App-wide constants (LOGS_DIR, etc.)
-        └── exceptions.py           # Custom exceptions & handlers
+        ├── constants.py                # App-wide constants (LOGS_DIR, etc.)
+        └── exceptions.py              # Custom exceptions & handlers
 ```
 
 ## Prerequisites
 
 - Python 3.12+
+- PostgreSQL (for local development)
 - Docker & Docker Compose (for containerised deployment)
 
 ---
@@ -101,7 +123,30 @@ source .venv/bin/activate        # macOS/Linux
 pip install -r requirements.txt
 ```
 
-### 3. Start the application
+### 3. Configure environment variables
+
+Create a `.env` file in the project root:
+
+```env
+DATABASE_URL=postgresql+asyncpg://postgres:yourpassword@localhost:5432/orders
+SECRET_KEY=your-super-secret-key-change-in-production
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+```
+
+### 4. Create the database
+
+```bash
+psql -U postgres -c "CREATE DATABASE orders;"
+```
+
+### 5. Run database migrations
+
+```bash
+alembic upgrade head
+```
+
+### 6. Start the application
 
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -143,30 +188,117 @@ The container:
 
 ---
 
+## Authentication Flow
+
+This API uses **JWT Bearer token** authentication. All order endpoints require a valid token.
+
+### Step 1 — Register a user
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "Secret@123"}'
+```
+
+### Step 2 — Login to get a token
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/auth/login" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=user@example.com&password=Secret@123"
+```
+
+Response:
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer"
+}
+```
+
+### Step 3 — Use the token
+
+Pass the token in the `Authorization` header for all order requests:
+
+```bash
+-H "Authorization: Bearer <access_token>"
+```
+
+> **Swagger UI**: Click the **Authorize 🔒** button at the top right, paste the token, and all order endpoints are unlocked.
+
+---
+
 ## API Endpoints
 
-### Employee Management
+### Authentication
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/employees/` | Create a new employee |
-| GET | `/api/employees/` | Get all employees |
-| GET | `/api/employees/{id}` | Get employee by ID |
-| PUT | `/api/employees/{id}` | Update employee |
-| DELETE | `/api/employees/{id}` | Delete employee |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/v1/auth/register` | No | Register a new user |
+| POST | `/api/v1/auth/login` | No | Login and receive JWT token |
+
+### Orders
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/orders/` | Yes | Create a new order |
+| GET | `/api/orders/` | Yes | List all your orders |
+| GET | `/api/orders/{id}` | Yes | Get order by ID |
+| PUT | `/api/orders/{id}` | Yes | Update an order |
+| DELETE | `/api/orders/{id}` | Yes | Delete an order |
 
 ### System
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/` | Welcome message |
-| GET | `/health` | Health check |
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/` | No | Welcome message |
+| GET | `/health` | No | Health check |
+
+---
+
+## curl Examples (Orders)
+
+Replace `<token>` with the `access_token` from the login response.
+
+### Create order
+```bash
+curl -X POST "http://localhost:8000/api/orders/" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"product_name": "Wireless Mouse", "quantity": 2, "unit_price": 29.99}'
+```
+
+### List orders
+```bash
+curl "http://localhost:8000/api/orders/" \
+  -H "Authorization: Bearer <token>"
+```
+
+### Get order by ID
+```bash
+curl "http://localhost:8000/api/orders/1" \
+  -H "Authorization: Bearer <token>"
+```
+
+### Update order
+```bash
+curl -X PUT "http://localhost:8000/api/orders/1" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "confirmed"}'
+```
+
+### Delete order
+```bash
+curl -X DELETE "http://localhost:8000/api/orders/1" \
+  -H "Authorization: Bearer <token>"
+```
 
 ---
 
 ## Running Tests
 
-Tests use an **in-memory SQLite database** so they are fully isolated from the real DB.
+Tests use an **in-memory SQLite database** — no PostgreSQL or `.env` needed.
 
 ```bash
 pytest
@@ -175,8 +307,15 @@ pytest
 To run a specific file:
 
 ```bash
-pytest tests/test_employee_api.py
+pytest tests/test_auth.py
+pytest tests/test_order_api.py
 pytest tests/test_health.py
+```
+
+To run with verbose output:
+
+```bash
+pytest -v
 ```
 
 ---
@@ -193,47 +332,18 @@ Logging is configured via `config/logging.ini`. On startup the app automatically
 
 ---
 
-## curl Examples
-
-### Create employee
-```bash
-curl -X POST "http://localhost:8000/api/employees/" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Jane Smith", "email": "jane.smith@example.com", "department": "Sales", "salary": 65000}'
-```
-
-### Get all employees
-```bash
-curl "http://localhost:8000/api/employees/"
-```
-
-### Get employee by ID
-```bash
-curl "http://localhost:8000/api/employees/1"
-```
-
-### Update employee
-```bash
-curl -X PUT "http://localhost:8000/api/employees/1" \
-  -H "Content-Type: application/json" \
-  -d '{"salary": 70000}'
-```
-
-### Delete employee
-```bash
-curl -X DELETE "http://localhost:8000/api/employees/1"
-```
-
----
-
 ## Technology Stack
 
 | Technology | Purpose |
 |------------|---------|
 | **FastAPI** | Web framework |
 | **SQLAlchemy 2.0** | Async ORM |
-| **SQLite + aiosqlite** | Database |
-| **Pydantic v2** | Data validation |
+| **PostgreSQL + asyncpg** | Production database |
+| **aiosqlite** | In-memory database for tests |
+| **Pydantic v2** | Data validation & serialisation |
+| **python-jose** | JWT token creation and verification |
+| **bcrypt** | Password hashing |
+| **Alembic** | Database schema migrations |
 | **Uvicorn** | ASGI server |
 | **Docker + Compose** | Containerisation & deployment |
 | **pytest + pytest-asyncio** | Async test suite |
@@ -253,10 +363,16 @@ lsof -ti:8000 | xargs kill -9
 docker-compose logs app
 ```
 
-### Inspect the SQLite database
+### Database connection error
+Ensure PostgreSQL is running and your `.env` `DATABASE_URL` is correct:
 ```bash
-sqlite3 employees.db
-.tables
-SELECT * FROM employees;
-.quit
+psql -U postgres -c "\l"   # list databases
+psql -U postgres -c "CREATE DATABASE orders;"
+```
+
+### Run a specific migration
+```bash
+alembic upgrade head          # apply all pending migrations
+alembic downgrade -1          # roll back the last migration
+alembic history               # view migration history
 ```

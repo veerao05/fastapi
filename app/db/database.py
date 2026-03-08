@@ -10,28 +10,21 @@ load_dotenv()
 
 logger = logging.getLogger("fastapi.app")
 
-# SQLite file database URL - get project root directory
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-db_path = os.path.join(project_root, "employees.db")
-DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite+aiosqlite:///{db_path}")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+asyncpg://postgres:postgres@localhost:5432/orders",
+)
 
 logger.debug("Using database URL: %s", DATABASE_URL)
 
-# Create async engine for SQLite
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=False,
-    future=True,
-    connect_args={"check_same_thread": False}
-)
+engine = create_async_engine(DATABASE_URL, echo=False, future=True)
 
-# Create async session factory
 AsyncSessionLocal = async_sessionmaker(
     engine,
     class_=AsyncSession,
     expire_on_commit=False,
     autocommit=False,
-    autoflush=False
+    autoflush=False,
 )
 
 Base = declarative_base()

@@ -1,4 +1,3 @@
-import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -34,9 +33,34 @@ async def setup_db():
     yield
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()
 
 
 @pytest_asyncio.fixture
 async def client():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
         yield ac
+
+
+@pytest_asyncio.fixture
+async def auth_client(client: AsyncClient):
+    """Registers a user, logs in, and returns a client with Bearer token pre-set."""
+    await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "test@example.com",
+            "password": "Test@1234",
+        },
+    )
+    resp = await client.post(
+        "/api/v1/auth/login",
+        data={
+            "username": "test@example.com",
+            "password": "Test@1234",
+        },
+    )
+    token = resp.json()["access_token"]
+    client.headers.update({"Authorization": f"Bearer {token}"})
+    return client

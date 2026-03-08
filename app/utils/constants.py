@@ -1,7 +1,9 @@
 import os
 
 # Project root directory
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 
 # Logs directory
 LOGS_DIR = os.path.join(PROJECT_ROOT, "var", "logs")
